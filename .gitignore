@@ -1,0 +1,21 @@
+# Environments
+venv/
+.env
+
+# Data
+data/
+*.csv
+!history.csv
+
+# Models
+models/*.h5
+models/*.pth
+models/*.pt
+models/*.onnx
+!models/vaniguard.onnx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
