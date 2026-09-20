@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white)
 ![CI](https://github.com/Likhith-Ram/VaniGuard/actions/workflows/test.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-75.97%%25-brightgreen)
 
 > **AI-generated voice detection for Hindi, Tamil, and Telugu.**
 > Built with a fine-tuned MobileNetV2 ONNX model, librosa signal processing, and a Streamlit dashboard.
@@ -12,27 +12,7 @@
 
 ## 🚀 Live Demo
 
-> **[DEMO_LINK]** — Deploy to [Streamlit Community Cloud](https://share.streamlit.io) for a free hosted demo.
-> Steps: Fork repo → go to share.streamlit.io → New app → select `ui/app.py` as entry point.
-
----
-
-## 👥 Academic Team (6 members)
-
-| Name | Role |
-|------|------|
-| [Team Member 1] | [Role] |
-| [Team Member 2] | [Role] |
-| [Team Member 3] | [Role] |
-| [Team Member 4] | [Role] |
-| [Team Member 5] | [Role] |
-| [Team Member 6] | [Role] |
-
-### My Contribution
-
-> **[FILL IN]** — e.g., "I personally designed and implemented the audio processing pipeline (`src/audio_io.py`, `src/features.py`), the ONNX inference wrapper (`src/model.py`), the full Streamlit UI (`ui/app.py`), and the complete test suite (`src/test_pipeline.py`)."
-
----
+> **[https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/]** 
 
 ## 🏗️ System Architecture
 
