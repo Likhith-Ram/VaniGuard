@@ -12,7 +12,7 @@
 
 ## 🚀 Live Demo
 
-> **[https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/]** 
+**[Try VaniGuard live →](https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/)**
 
 ## 🏗️ System Architecture
 
