@@ -12,15 +12,29 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+
+    - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
-        python-version: "3.9"
-    - name: Install dependencies
+        python-version: "3.10"
+
+    - name: Install runtime dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-    - name: Run tests with pytest
+
+    - name: Install development dependencies
+      run: pip install -r requirements-dev.txt
+
+    - name: Lint with flake8
+      run: flake8 src/ ui/app.py
+
+    - name: Type-check with mypy
+      run: mypy src/
+
+    - name: Run tests with pytest + coverage
       run: |
-        pytest src/ -v
+        pytest src/test_pipeline.py src/test_librosa.py -v \
+          --cov=src \
+          --cov-report=term-missing \
+          --cov-config=setup.cfg

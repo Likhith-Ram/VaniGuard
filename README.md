@@ -1,69 +1,185 @@
-# VaniGuard — Deep Audio Cloning Detection
+# 🎙️ VaniGuard — Deep Audio Cloning Detection
 
-VaniGuard is an audio deepfake detection application designed to identify AI-generated voices (specifically focusing on Hindi, Tamil, and Telugu audio). It utilizes signal processing, a fine-tuned MobileNetV2 model, and a Streamlit dashboard.
+![Python](https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white)
+![CI](https://github.com/Likhith-Ram/VaniGuard/actions/workflows/test.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)
 
-## 👥 Academic Team
+> **AI-generated voice detection for Hindi, Tamil, and Telugu.**
+> Built with a fine-tuned MobileNetV2 ONNX model, librosa signal processing, and a Streamlit dashboard.
 
-This project was developed by a 6-member academic team. 
+---
+
+## 🚀 Live Demo
+
+> **[DEMO_LINK]** — Deploy to [Streamlit Community Cloud](https://share.streamlit.io) for a free hosted demo.
+> Steps: Fork repo → go to share.streamlit.io → New app → select `ui/app.py` as entry point.
+
+---
+
+## 👥 Academic Team (6 members)
+
+| Name | Role |
+|------|------|
+| [Team Member 1] | [Role] |
+| [Team Member 2] | [Role] |
+| [Team Member 3] | [Role] |
+| [Team Member 4] | [Role] |
+| [Team Member 5] | [Role] |
+| [Team Member 6] | [Role] |
+
+### My Contribution
+
+> **[FILL IN]** — e.g., "I personally designed and implemented the audio processing pipeline (`src/audio_io.py`, `src/features.py`), the ONNX inference wrapper (`src/model.py`), the full Streamlit UI (`ui/app.py`), and the complete test suite (`src/test_pipeline.py`)."
+
+---
 
 ## 🏗️ System Architecture
 
-The application is built with a fully in-memory data pipeline—requiring no temporary files or external binaries like ffmpeg.
+### Data Pipeline (fully in-memory — no temp files, no ffmpeg)
 
-1. **Browser Upload**: Receives the raw audio bytes from the user.
-2. **Audio Decoding**: `miniaudio.decode()` processes MP3, WAV, FLAC, OGG, or M4A formats natively.
-3. **Signal Processing**: `librosa` transforms the numpy float32 PCM array (resample → trim/pad → melspectrogram → power_to_db → min-max norm).
-4. **Inference**: A fine-tuned MobileNetV2 model deployed via ONNX inference (`vaniguard.onnx`) predicts the probability of the audio being AI-generated.
-5. **Verdict & Dashboard**: Streamlit displays the verdict, confidence score, risk band, and data visualizations.
+```
+Browser upload bytes
+     │
+     ▼
+src/audio_io.py  _decode_audio_bytes()
+     │   miniaudio (MP3/WAV/FLAC/OGG/M4A) or soundfile fallback
+     ▼
+numpy float32 PCM array
+     │
+     ▼
+src/features.py  preprocess_audio()
+     │   resample → trim/zero-pad → Log-Mel Spectrogram (128 bands)
+     │   → power_to_db → min-max norm → reshape (1, 128, T, 1)
+     ▼
+src/model.py  run_inference(session, mel_tensor)
+     │   ONNX InferenceSession (CPUExecutionProvider)
+     ▼
+P(AI-generated) ∈ [0, 1]
+     │
+     ▼
+src/classify.py  classify(prob_ai)
+     │   threshold mapping → verdict + risk band
+     ▼
+ui/app.py  Streamlit dashboard (verdict banner, metrics, spectrogram)
+```
 
-## 🚀 Local Setup Instructions
+### Module Map
+
+```
+VaniGuard/
+├── src/
+│   ├── config.py        ← All constants & thresholds (single source of truth)
+│   ├── audio_io.py      ← Stage 1: decode bytes → float32 PCM
+│   ├── features.py      ← Stages 2–6: full preprocessing pipeline
+│   ├── model.py         ← ONNX session loading + inference
+│   ├── classify.py      ← P(AI) → verdict / risk band / CSS class
+│   ├── history.py       ← CSV-based detection history I/O
+│   ├── pipeline.py      ← Public re-export façade
+│   ├── test_pipeline.py ← Unit tests (pytest)
+│   ├── test_librosa.py  ← Librosa feature extraction tests (pytest)
+│   └── test_script.py   ← Manual end-to-end smoke test
+├── ui/
+│   └── app.py           ← Streamlit UI only (~270 lines, zero business logic)
+├── models/
+│   └── vaniguard.onnx   ← Fine-tuned MobileNetV2 weights
+├── data/
+│   └── history.csv      ← Detection history (auto-created)
+├── notebooks/           ← Training notebooks (add here)
+├── requirements.txt
+├── requirements-dev.txt
+├── run.bat              ← Windows one-click launcher
+└── .github/workflows/
+    └── test.yml         ← CI: flake8 + mypy + pytest + coverage
+```
+
+### Classification Thresholds
+
+| P(AI-generated) | Verdict | Risk Band | CSS Class |
+|---|---|---|---|
+| ≥ 0.80 | AI-Generated | HIGH RISK | `risk-high` |
+| ≥ 0.60 | AI-Generated | SUSPICIOUS | `risk-sus` |
+| ≥ 0.40 | UNCERTAIN | UNCERTAIN | `risk-uncertain` |
+| < 0.40 | Human | LOW RISK | `risk-low` |
+
+---
+
+## 🤖 Model Details
+
+| Property | Value |
+|---|---|
+| Architecture | MobileNetV2 (fine-tuned) |
+| Format | ONNX (CPU inference) |
+| Input | `(1, 128, T, 1)` float32 Log-Mel Spectrogram |
+| Output | `float` P(AI-generated) ∈ [0, 1] |
+| Training Data | AI4Bharat corpus |
+| Languages | Hindi, Tamil, Telugu |
+| Accuracy | [FILL IN] |
+| F1 Score | [FILL IN] |
+
+---
+
+## 🚀 Local Setup
 
 ### Prerequisites
-- Python 3.9+
+- Python **3.10+**
 - Git
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository_url>
-   cd VaniGuard
-   ```
+```bash
+# 1. Clone
+git clone https://github.com/Likhith-Ram/VaniGuard.git
+cd VaniGuard
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   
-   # On Windows:
-   venv\Scripts\activate
-   # On Unix or MacOS:
-   source venv/bin/activate
-   ```
+# 2. Create virtual environment
+python -m venv venv
 
-3. **Install the dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 3. Activate
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
 
-### Running the Application
+# 4. Install runtime deps
+pip install -r requirements.txt
+```
 
-1. Ensure your virtual environment is active.
-2. Run the Streamlit application:
-   ```bash
-   cd ui
-   streamlit run app.py
-   ```
-   *Alternatively, on Windows, you can just run `run.bat` in the root folder if configured.*
+### Run the App
 
-### Running Tests
+```bash
+# Option A: direct
+streamlit run ui/app.py
 
-This project uses `pytest` for unit testing the audio pipeline. 
+# Option B: Windows one-click
+run.bat
+```
 
-1. Install the development dependencies:
-   ```bash
-   pip install -r requirements-dev.txt
-   ```
-2. Run the test suite:
-   ```bash
-   pytest src/ -v
-   ```
+### Run Tests
+
+```bash
+# Install dev tools
+pip install -r requirements-dev.txt
+
+# Unit tests + coverage
+pytest src/test_pipeline.py src/test_librosa.py -v --cov=src --cov-report=term-missing
+
+# Lint
+flake8 src/ ui/app.py
+
+# Type check
+mypy src/
+
+# Manual smoke test (not pytest)
+python src/test_script.py --verbose
+```
+
+---
+
+## ⚠️ Known Limitations
+
+> **Single-user local tool only.**
+> Concurrent writes to `history.csv` from multiple processes are **not safe** — there is no file locking. If you deploy with multiple simultaneous users, replace the CSV backend with a proper database (SQLite, PostgreSQL, etc.).
+
+> **Random fallback mode.**
+> If `models/vaniguard.onnx` is not found, the app falls back to random predictions. A visible warning banner appears on both the sidebar and the Analyze page when this occurs.

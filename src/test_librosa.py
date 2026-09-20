@@ -14,19 +14,13 @@ Run with:
     python -m pytest test_librosa.py -v
 """
 
-import io
 import unittest
 
 import librosa
 import numpy as np
-import soundfile as sf
 
-# ── Pipeline constants (mirror app.py) ────────────────────────────────────
-SAMPLE_RATE = 16_000
-N_MELS      = 128
-N_FFT       = 1_024
-HOP_LENGTH  = 512
-DURATION    = 3.0
+# ── Pipeline constants from config (single source of truth) ───────────────
+from src.config import SAMPLE_RATE, N_MELS, N_FFT, HOP_LENGTH, DURATION
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

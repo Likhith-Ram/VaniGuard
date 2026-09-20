@@ -5,17 +5,25 @@ venv/
 # Data
 data/
 *.csv
-!history.csv
 
-# Models
+# Models (only check in the distributed .onnx file explicitly)
 models/*.h5
 models/*.pth
 models/*.pt
-models/*.onnx
-!models/vaniguard.onnx
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+
+# Windows Explorer artifacts
+desktop.ini
+Thumbs.db
+
+# macOS
 .DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,11 @@
+[flake8]
+max-line-length = 100
+exclude =
+    venv,
+    __pycache__,
+    notebooks,
+    .git
+# E221 multiple spaces before operator — used for intentional alignment in constants/tables
+# E501 line too long — unavoidable in CSS string literals inside st.markdown()
+# W503 line break before binary operator — conflicts with black style
+extend-ignore = W503,E221,E501
