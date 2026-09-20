@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white)
 ![CI](https://github.com/Likhith-Ram/VaniGuard/actions/workflows/test.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Coverage](https://img.shields.io/badge/coverage-75.97%%25-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-75.97%25-brightgreen)
 
 > **AI-generated voice detection for Hindi, Tamil, and Telugu.**
 > Built with a fine-tuned MobileNetV2 ONNX model, librosa signal processing, and a Streamlit dashboard.
