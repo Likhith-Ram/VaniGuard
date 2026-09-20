@@ -54,3 +54,16 @@ The application is built with a fully in-memory data pipeline—requiring no tem
    streamlit run app.py
    ```
    *Alternatively, on Windows, you can just run `run.bat` in the root folder if configured.*
+
+### Running Tests
+
+This project uses `pytest` for unit testing the audio pipeline. 
+
+1. Install the development dependencies:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+2. Run the test suite:
+   ```bash
+   pytest src/ -v
+   ```
