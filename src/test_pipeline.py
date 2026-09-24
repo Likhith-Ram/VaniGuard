@@ -328,5 +328,176 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(css, "risk-low")
 
 
+# ── 7. StreamPipeline ─────────────────────────────────────────────────────
+
+from src.pipeline import StreamPipeline, WindowResult  # noqa: E402
+from src.config import (  # noqa: E402
+    STREAM_WINDOW_SAMPLES,
+    STREAM_HOP_SAMPLES,
+)
+
+
+class TestStreamPipeline(unittest.TestCase):
+    """Tests for the sliding-window streaming pipeline."""
+
+    def _make_mock_session(self, prob: float = 0.75) -> MagicMock:
+        """Return a mock ONNX session that always outputs *prob*."""
+        ms = MagicMock()
+        ms.get_inputs.return_value = [MagicMock(name="input")]
+        ms.run.return_value = [np.array([[prob]], dtype=np.float32)]
+        return ms
+
+    # ── Core contract: window count ───────────────────────────────────────
+
+    def test_10s_in_half_second_chunks(self) -> None:
+        """
+        Feed 10 seconds of audio in 0.5-second chunks.
+
+        Expected windows  = 1 + floor((total_samples - window_samples) / hop_samples)
+                          = 1 + floor((160 000 - 64 000) / 16 000)
+                          = 1 + 6  =  7
+        """
+        total_duration = 10.0
+        chunk_duration = 0.5
+        total_samples = int(SAMPLE_RATE * total_duration)
+        chunk_samples = int(SAMPLE_RATE * chunk_duration)
+
+        pcm = _sine_wave(440.0, total_duration)
+        ms = self._make_mock_session(0.65)
+        sp = StreamPipeline(session=ms)
+
+        all_results: list[WindowResult] = []
+        for start in range(0, total_samples, chunk_samples):
+            chunk = pcm[start: start + chunk_samples]
+            all_results.extend(sp.write(chunk))
+
+        # flush any trailing full window
+        all_results.extend(sp.flush())
+
+        expected_windows = 1 + (total_samples - STREAM_WINDOW_SAMPLES) // STREAM_HOP_SAMPLES
+        self.assertEqual(
+            len(all_results),
+            expected_windows,
+            f"Expected {expected_windows} windows for {total_duration}s audio, "
+            f"got {len(all_results)}",
+        )
+
+    def test_window_indices_sequential(self) -> None:
+        """Window indices must be 0, 1, 2, …"""
+        pcm = _sine_wave(440.0, 10.0)
+        sp = StreamPipeline(session=self._make_mock_session())
+        results = sp.write(pcm)
+        results.extend(sp.flush())
+        indices = [r.window_index for r in results]
+        self.assertEqual(indices, list(range(len(results))))
+
+    # ── Result fields ─────────────────────────────────────────────────────
+
+    def test_result_fields_populated(self) -> None:
+        """Every WindowResult must have valid fields."""
+        sp = StreamPipeline(session=self._make_mock_session(0.90))
+        results = sp.write(_sine_wave(440.0, 5.0))
+        self.assertGreater(len(results), 0)
+        r = results[0]
+        self.assertIsInstance(r, WindowResult)
+        self.assertIsInstance(r.prob_ai, float)
+        self.assertIn(r.risk_css, {"risk-high", "risk-sus", "risk-uncertain", "risk-low"})
+
+    def test_mock_prob_forwarded(self) -> None:
+        """The mock session probability should flow through to results."""
+        sp = StreamPipeline(session=self._make_mock_session(0.42))
+        results = sp.write(_sine_wave(440.0, 5.0))
+        for r in results:
+            self.assertAlmostEqual(r.prob_ai, 0.42, places=4)
+
+    # ── Edge cases ────────────────────────────────────────────────────────
+
+    def test_less_than_one_window_produces_no_results(self) -> None:
+        """Feeding < 4 s of audio should produce zero windows."""
+        sp = StreamPipeline(session=self._make_mock_session())
+        results = sp.write(_sine_wave(440.0, 3.0))
+        self.assertEqual(len(results), 0)
+
+    def test_exactly_one_window(self) -> None:
+        """Feeding exactly 4 s (= window_samples) should produce one window."""
+        sp = StreamPipeline(session=self._make_mock_session())
+        results = sp.write(_sine_wave(440.0, 4.0))
+        self.assertEqual(len(results), 1)
+
+    def test_reset_clears_state(self) -> None:
+        """After reset, buffer and window count are zero."""
+        sp = StreamPipeline(session=self._make_mock_session())
+        sp.write(_sine_wave(440.0, 5.0))
+        sp.reset()
+        self.assertEqual(sp.total_windows, 0)
+        self.assertEqual(sp.buffered_samples, 0)
+
+    def test_total_windows_property(self) -> None:
+        """total_windows must equal sum of all results returned."""
+        sp = StreamPipeline(session=self._make_mock_session())
+        results = sp.write(_sine_wave(440.0, 8.0))
+        results.extend(sp.flush())
+        self.assertEqual(sp.total_windows, len(results))
+
+    def test_no_session_runs_fallback(self) -> None:
+        """session=None should still work (random fallback)."""
+        sp = StreamPipeline(session=None)
+        results = sp.write(_sine_wave(440.0, 5.0))
+        self.assertGreater(len(results), 0)
+        for r in results:
+            self.assertGreaterEqual(r.prob_ai, 0.0)
+            self.assertLessEqual(r.prob_ai, 1.0)
+
+    def test_multiple_writes_accumulate(self) -> None:
+        """Multiple small writes should accumulate in the buffer correctly."""
+        sp = StreamPipeline(session=self._make_mock_session())
+        # Write 2 s three times = 6 s total → should produce at least 1 window
+        all_results: list[WindowResult] = []
+        for _ in range(3):
+            all_results.extend(sp.write(_sine_wave(440.0, 2.0)))
+        total_samples = int(SAMPLE_RATE * 6.0)
+        expected = 1 + (total_samples - STREAM_WINDOW_SAMPLES) // STREAM_HOP_SAMPLES
+        self.assertEqual(len(all_results), expected)
+
+
+# ── 8. preprocess_audio_array ──────────────────────────────────────────────
+
+from src.features import preprocess_audio_array  # noqa: E402
+
+
+class TestPreprocessAudioArray(unittest.TestCase):
+    """Tests for the numpy-array-based preprocessing path."""
+
+    def test_output_shapes(self) -> None:
+        y = _sine_wave(440.0, 4.0)
+        mel_norm, mel_tensor, dur = preprocess_audio_array(y, target_duration=4.0)
+        self.assertEqual(mel_norm.ndim, 2)
+        self.assertEqual(mel_norm.shape[0], N_MELS)
+        self.assertEqual(mel_tensor.ndim, 4)
+        self.assertEqual(mel_tensor.shape[0], 1)
+        self.assertEqual(mel_tensor.shape[1], N_MELS)
+        self.assertEqual(mel_tensor.shape[3], 1)
+        self.assertEqual(mel_tensor.dtype, np.float32)
+
+    def test_duration_correct(self) -> None:
+        y = _sine_wave(440.0, 2.5)
+        _, _, dur = preprocess_audio_array(y, target_duration=4.0)
+        self.assertAlmostEqual(dur, 2.5, delta=0.05)
+
+    def test_matches_batch_path_for_3s(self) -> None:
+        """Array path with default duration should match batch path (stage 3-6)."""
+        y = _sine_wave(440.0, 3.0)
+        wav_bytes = _wav_bytes(y)
+        m_batch, t_batch, d_batch = preprocess_audio(wav_bytes, "wav")
+        m_arr, t_arr, _ = preprocess_audio_array(y, target_duration=3.0)
+        np.testing.assert_array_almost_equal(t_batch, t_arr, decimal=4)
+
+    def test_silent_input_no_nans(self) -> None:
+        y = np.zeros(int(SAMPLE_RATE * 4.0), dtype=np.float32)
+        m, t, _ = preprocess_audio_array(y, target_duration=4.0)
+        self.assertFalse(np.isnan(m).any())
+        self.assertFalse(np.isnan(t).any())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

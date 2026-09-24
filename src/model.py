@@ -52,6 +52,39 @@ def load_model(
         return None, str(exc)
 
 
+# ── Cached session singleton ──────────────────────────────────────────────
+_cached_session: Optional[Any] = None
+_cached_error: Optional[str] = None
+_session_loaded: bool = False
+
+
+def get_cached_session(
+    model_path: str = MODEL_PATH,
+) -> tuple[Optional[Any], Optional[str]]:
+    """
+    Return a lazily-loaded, module-level cached ONNX session.
+
+    The first call delegates to :func:`load_model`; subsequent calls
+    return the cached result.  This avoids reloading the model on
+    every sliding-window iteration in the streaming pipeline.
+
+    Parameters
+    ----------
+    model_path : str
+        Path to the ``.onnx`` file.  Only used on the first call.
+
+    Returns
+    -------
+    (session, error_message)
+        Same semantics as :func:`load_model`.
+    """
+    global _cached_session, _cached_error, _session_loaded
+    if not _session_loaded:
+        _cached_session, _cached_error = load_model(model_path)
+        _session_loaded = True
+    return _cached_session, _cached_error
+
+
 def run_inference(session: Any, mel_tensor: np.ndarray) -> float:
     """
     Run ONNX inference and return P(AI-generated) clamped to [0, 1].

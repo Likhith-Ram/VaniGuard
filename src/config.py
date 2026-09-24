@@ -14,6 +14,12 @@ N_FFT: int = 1_024              # FFT window size
 HOP_LENGTH: int = 512           # frames hop
 MIN_DURATION: float = 0.5      # clips shorter than this are rejected (seconds)
 
+# ── Streaming pipeline constants ──────────────────────────────────────────
+STREAM_WINDOW_S: float = 4.0    # sliding window length in seconds
+STREAM_HOP_S: float = 1.0       # hop between consecutive windows in seconds
+STREAM_WINDOW_SAMPLES: int = int(SAMPLE_RATE * STREAM_WINDOW_S)   # 64 000
+STREAM_HOP_SAMPLES: int = int(SAMPLE_RATE * STREAM_HOP_S)         # 16 000
+
 # ── Classification thresholds (inclusive lower bound) ─────────────────────
 # P(AI) >= THRESH_HIGH      → HIGH RISK
 # P(AI) >= THRESH_SUS       → SUSPICIOUS
