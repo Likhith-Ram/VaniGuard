@@ -153,7 +153,7 @@ def render_sidebar() -> str:
 
         page = st.radio(
             "Navigation",
-            [" Dashboard", " Analyze", " History"],
+            [" Dashboard", " Analyze", " Live Monitor", " History"],
             label_visibility="collapsed",
         )
 
@@ -388,6 +388,158 @@ def render_analyze() -> None:
 
 
 # ──────────────────────────────────────────────
+# PAGE — LIVE MONITOR
+# ──────────────────────────────────────────────
+def render_live_monitor() -> None:
+    import time
+    import pandas as pd
+    from src.risk_engine import RiskEngine
+    from src.pipeline import StreamPipeline
+    from src.audio_io import _decode_audio_bytes
+    from src.config import SAMPLE_RATE, EER_THRESHOLD, THRESH_HIGH
+
+    st.markdown("# Live Monitor")
+    st.markdown("Analyze continuous audio to detect sustained AI voice risks.")
+    st.markdown("<hr class='section-rule'>", unsafe_allow_html=True)
+
+    if session is None:
+        st.warning("⚠️ Model not loaded. Predictions will be random placeholders.")
+
+    # ── State Init ──
+    if "live_history" not in st.session_state:
+        st.session_state.live_history = []
+    if "live_table" not in st.session_state:
+        st.session_state.live_table = []
+    if "live_is_running" not in st.session_state:
+        st.session_state.live_is_running = False
+
+    # ── Settings Sidebar ──
+    with st.sidebar.expander("⚙️ Live Monitor Settings", expanded=True):
+        st.markdown("**Dynamic Thresholds**")
+        amber_thresh = st.slider("Amber Threshold (EER)", 0.0, 1.0, float(EER_THRESHOLD), 0.01)
+        red_thresh = st.slider("Red Threshold (High Risk)", 0.0, 1.0, float(THRESH_HIGH), 0.01)
+
+    uploaded = st.file_uploader(
+        "Choose an audio file for live simulation",
+        type=["wav", "mp3", "ogg", "flac", "m4a"],
+        key="live_monitor_upload"
+    )
+
+    if uploaded is None:
+        st.info("Upload an audio file to start live monitoring.")
+        st.session_state.live_history = []
+        st.session_state.live_table = []
+        st.session_state.live_is_running = False
+        return
+
+    ext = uploaded.name.rsplit(".", 1)[-1].lower()
+
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        start_btn = st.button("▶ Start", type="primary", use_container_width=True)
+    with col2:
+        stop_btn = st.button("⏹ Stop", use_container_width=False)
+
+    if stop_btn:
+        st.session_state.live_is_running = False
+
+    if start_btn:
+        st.session_state.live_history = []
+        st.session_state.live_table = []
+        st.session_state.live_is_running = True
+        
+    st.markdown("### Risk Status")
+    badge_placeholder = st.empty()
+    
+    st.markdown("### Window Analysis")
+    chart_placeholder = st.empty()
+    table_placeholder = st.empty()
+
+    # Re-render existing state if not running (e.g. after hitting Stop)
+    if not st.session_state.live_is_running and st.session_state.live_table:
+        latest = st.session_state.live_table[-1]
+        lvl = latest["Level"]
+        conf = latest["Confidence"]
+        msg = f"**Status:** {lvl} &nbsp;&nbsp;|&nbsp;&nbsp; **Confidence:** {conf:.1f}%"
+        with badge_placeholder.container():
+            if lvl == "GREEN":
+                st.success(msg)
+            elif lvl == "AMBER":
+                st.warning(msg)
+            else:
+                st.error(msg)
+        chart_placeholder.line_chart(st.session_state.live_history, y_label="P(AI)", height=300)
+        table_placeholder.dataframe(pd.DataFrame(st.session_state.live_table), use_container_width=True)
+
+    if st.session_state.live_is_running:
+        audio_bytes = uploaded.getvalue()
+        try:
+            pcm = _decode_audio_bytes(audio_bytes, ext)
+        except Exception as exc:
+            st.error(f"Error decoding audio: {exc}")
+            st.session_state.live_is_running = False
+            return
+            
+        sp = StreamPipeline(session=session)
+        engine = RiskEngine(amber_threshold=amber_thresh, red_threshold=red_thresh)
+        engine.reset()
+        
+        # 1-second chunks (since hop size is 1 second, this produces exactly 1 result per chunk smoothly)
+        chunk_size = int(SAMPLE_RATE * 1.0) 
+        
+        for i in range(0, len(pcm), chunk_size):
+            # If user clicked stop, Streamlit raises StopException and aborts the loop,
+            # but we also check our own flag just in case.
+            if not st.session_state.live_is_running:
+                break
+                
+            chunk = pcm[i:i+chunk_size]
+            results = sp.write(chunk)
+            if i + chunk_size >= len(pcm):
+                results.extend(sp.flush())
+                
+            for r in results:
+                state = engine.ingest(r.prob_ai)
+                
+                st.session_state.live_history.append(r.prob_ai)
+                if len(st.session_state.live_history) > 5:
+                    st.session_state.live_history.pop(0)
+                
+                win_time = f"{r.window_index}s - {r.window_index + 4}s"
+                
+                st.session_state.live_table.append({
+                    "Time": win_time,
+                    "P(AI)": round(r.prob_ai, 3),
+                    "Verdict": r.verdict,
+                    "Level": state.level.name,
+                    "Confidence": state.confidence * 100
+                })
+                    
+                # Update UI elements
+                lvl = state.level.name
+                msg = f"**Status:** {lvl} &nbsp;&nbsp;|&nbsp;&nbsp; **Confidence:** {state.confidence*100:.1f}%"
+                with badge_placeholder.container():
+                    if lvl == "GREEN":
+                        st.success(msg)
+                    elif lvl == "AMBER":
+                        st.warning(msg)
+                    else:
+                        st.error(msg)
+                
+                chart_placeholder.line_chart(st.session_state.live_history, y_label="P(AI)", height=300)
+                
+                df_table = pd.DataFrame(st.session_state.live_table)
+                table_placeholder.dataframe(df_table.iloc[::-1], use_container_width=True) # Show newest first
+                
+                time.sleep(0.8) # 0.8s sleep to simulate 1s hop speed while allowing UI overhead
+                
+        st.session_state.live_is_running = False
+        st.info("Live monitor playback complete.")
+        
+        # We trigger a rerun so the state stabilizes and buttons reset
+        st.rerun()
+
+# ──────────────────────────────────────────────
 # PAGE — HISTORY
 # ──────────────────────────────────────────────
 def render_history() -> None:
@@ -450,6 +602,8 @@ def main() -> None:
         render_dashboard()
     elif "Analyze" in page:
         render_analyze()
+    elif "Live Monitor" in page:
+        render_live_monitor()
     elif "History" in page:
         render_history()
 

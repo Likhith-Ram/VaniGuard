@@ -88,6 +88,22 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(report.n_positive, 2)
         self.assertEqual(report.n_negative, 2)
 
+    def test_calibration_bounds(self):
+        y_true = np.array([0, 0, 1, 1])
+        y_scores = np.array([0.1, 0.3, 0.7, 0.9])
+        calibrated = calibrate_thresholds(y_true, y_scores)
+        
+        self.assertTrue(0.0 <= calibrated.high <= 1.0)
+        self.assertTrue(0.0 <= calibrated.suspicious <= 1.0)
+        self.assertTrue(0.0 <= calibrated.uncertain <= 1.0)
+
+    def test_risk_engine_config_defaults(self):
+        from src.risk_engine import RiskEngine
+        from src import config
+        engine = RiskEngine()
+        self.assertEqual(engine.amber_threshold, config.EER_THRESHOLD)
+        self.assertEqual(engine.red_threshold, config.THRESH_HIGH)
+
 
 class TestClassifyWithEER(unittest.TestCase):
 

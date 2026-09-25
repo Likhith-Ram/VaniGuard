@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
 
+from src import config
+
 
 class RiskLevel(Enum):
     """Enumerated risk levels, ordered by severity."""
@@ -66,8 +68,8 @@ class RiskState:
 
 
 # ── Escalation thresholds ─────────────────────────────────────────────────
-_AMBER_THRESHOLD: float = 0.50
-_RED_THRESHOLD: float = 0.75
+_AMBER_THRESHOLD: float = config.EER_THRESHOLD
+_RED_THRESHOLD: float = config.THRESH_HIGH
 _AMBER_SUSTAIN: int = 2   # consecutive windows required to reach Amber
 _RED_SUSTAIN: int = 3     # consecutive windows required to reach Red
 _HISTORY_SIZE: int = 5    # rolling window length

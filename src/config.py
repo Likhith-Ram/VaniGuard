@@ -28,6 +28,7 @@ STREAM_HOP_SAMPLES: int = int(SAMPLE_RATE * STREAM_HOP_S)         # 16 000
 THRESH_HIGH: float = 0.80
 THRESH_SUS: float = 0.60
 THRESH_UNCERTAIN: float = 0.40
+EER_THRESHOLD: float = 0.5055  # Calibrated using synthetic data
 
 # ── File paths ─────────────────────────────────────────────────────────────
 _ROOT: Path = Path(__file__).resolve().parent.parent  # repo root
