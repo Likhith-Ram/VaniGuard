@@ -9,3 +9,9 @@ soundfile>=0.12.1
 onnxruntime>=1.17.0
 scipy>=1.11.0
 miniaudio>=1.57           # in-memory MP3/WAV/FLAC/OGG decoder; no ffmpeg needed
+
+# FastAPI backend (for mobile app API)
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9   # required for file uploads in FastAPI
+websockets>=12.0
