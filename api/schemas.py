@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -107,3 +108,42 @@ class HealthResponse(BaseModel):
     )
     version: str = Field(default="1.0.0", description="API version")
     uptime_s: float = Field(..., description="Server uptime in seconds")
+
+
+# ── Users & Contacts ────────────────────────────────────────────────────────
+
+
+class TrustedContactBase(BaseModel):
+    contact_name: str
+    contact_phone: str
+    relationship_type: Optional[str] = None
+
+
+class TrustedContactCreate(TrustedContactBase):
+    pass
+
+
+class TrustedContactRead(TrustedContactBase):
+    id: UUID
+    user_id: UUID
+
+    class Config:
+        from_attributes = True
+
+
+class UserBase(BaseModel):
+    phone_number: str
+    full_name: Optional[str] = None
+
+
+class UserCreate(UserBase):
+    pass
+
+
+class UserRead(UserBase):
+    id: UUID
+    created_at: datetime
+    contacts: list[TrustedContactRead] = []
+
+    class Config:
+        from_attributes = True

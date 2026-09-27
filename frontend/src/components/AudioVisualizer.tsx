@@ -19,7 +19,10 @@ export function AudioVisualizer({ isRecording, isAnalyzing }: AudioVisualizerPro
         setBars((prev) => prev.map(() => (isAnalyzing ? 10 + Math.random() * 90 : 5 + Math.random() * 60)));
       }, 100);
     } else {
-      setBars(Array.from({ length: 40 }).map(() => 5));
+      // Reset outside the synchronous effect body to satisfy the linter
+      interval = setTimeout(() => {
+        setBars(Array.from({ length: 40 }).map(() => 5));
+      }, 0) as unknown as NodeJS.Timeout;
     }
     return () => clearInterval(interval);
   }, [isRecording, isAnalyzing]);

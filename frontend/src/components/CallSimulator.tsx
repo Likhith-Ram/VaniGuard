@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, User, Activity, ShieldCheck, ShieldAlert, XCircle, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Phone, User, Activity, ShieldCheck, ShieldAlert, ArrowRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { RiskGauge } from "./RiskGauge";
+
+// Stable durations per bar — avoids impure Math.random() during render
+const BAR_DURATIONS = [0.6, 0.9, 0.75, 1.1, 0.5];
 
 export function CallSimulator() {
   const [activeCall, setActiveCall] = useState<null | 'genuine' | 'scam'>(null);
@@ -51,12 +54,12 @@ export function CallSimulator() {
               
               <div className="flex items-center gap-4 bg-slate-900 px-6 py-3 rounded-full border border-slate-700 w-64 justify-center">
                 <div className="flex gap-1 items-center h-4">
-                  {[1,2,3,4,5].map(i => (
+                  {[1,2,3,4,5].map((i, idx) => (
                     <motion.div 
                       key={i}
                       className="w-1 bg-emerald-400 rounded-full"
                       animate={{ height: ['20%', '100%', '40%'] }}
-                      transition={{ repeat: Infinity, duration: 0.5 + Math.random(), ease: "easeInOut" }}
+                      transition={{ repeat: Infinity, duration: BAR_DURATIONS[idx], ease: "easeInOut" }}
                     />
                   ))}
                 </div>

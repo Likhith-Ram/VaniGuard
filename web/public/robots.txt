@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/sitemap.xml

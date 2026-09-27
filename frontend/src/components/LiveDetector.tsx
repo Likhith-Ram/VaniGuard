@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Mic, Upload, Download, ShieldAlert, Shield, PhoneCall } from "lucide-react";
 import { AudioVisualizer } from "./AudioVisualizer";
 import { RiskGauge } from "./RiskGauge";
@@ -15,31 +15,34 @@ export function LiveDetector() {
   
   const { isStreaming, latestResult, error, startStream, stopStream } = useAudioStream();
   
-  // Sync streaming result to the static result state so UI updates uniformly
-  useEffect(() => {
-    if (latestResult) {
-      // Map StreamResult to DetectionResult interface
-      let mappedVerdict: 'AUTHENTIC' | 'SUSPICIOUS' | 'CLONED' = 'AUTHENTIC';
-      if (latestResult.verdict.includes("AI-Generated") || latestResult.verdict === "SYNTHETIC CLONE DETECTED") {
-        mappedVerdict = 'CLONED';
-      } else if (latestResult.verdict === "UNCERTAIN") {
-        mappedVerdict = 'SUSPICIOUS';
-      }
+  // Derive streaming result during render instead of in a useEffect (avoids sync-setState-in-effect)
+  const streamingResult: DetectionResult | null = latestResult
+    ? (() => {
+        let mappedVerdict: "AUTHENTIC" | "SUSPICIOUS" | "CLONED" = "AUTHENTIC";
+        if (
+          latestResult.verdict.includes("AI-Generated") ||
+          latestResult.verdict === "SYNTHETIC CLONE DETECTED"
+        ) {
+          mappedVerdict = "CLONED";
+        } else if (latestResult.verdict === "UNCERTAIN") {
+          mappedVerdict = "SUSPICIOUS";
+        }
+        return {
+          score: latestResult.prob_ai * 100,
+          verdict: mappedVerdict,
+          details: {
+            spectralJitter: latestResult.status_confidence * 100,
+            harmonicArtifacts: latestResult.prob_ai * 80,
+            phonemeConsistency: 100 - latestResult.prob_ai * 60,
+            neuralSynthesisMarkers: latestResult.prob_ai * 100,
+          },
+          duration: (latestResult.window_index * 4096) / 16000,
+          language,
+        };
+      })()
+    : null;
 
-      setResult({
-        score: latestResult.prob_ai * 100,
-        verdict: mappedVerdict,
-        details: {
-          spectralJitter: latestResult.status_confidence * 100, // Using confidence for demo mapping
-          harmonicArtifacts: latestResult.prob_ai * 80, 
-          phonemeConsistency: 100 - (latestResult.prob_ai * 60),
-          neuralSynthesisMarkers: latestResult.prob_ai * 100,
-        },
-        duration: (latestResult.window_index * 4096) / 16000, // Approx seconds if buffer is 4096@16kHz
-        language: language,
-      });
-    }
-  }, [latestResult, language]);
+  const displayResult = streamingResult ?? result;
 
   const handleRecordToggle = async () => {
     if (isStreaming) {
@@ -127,12 +130,12 @@ export function LiveDetector() {
              )}
           </div>
           
-          {result ? (
+          {displayResult ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              <MetricRow label="Spectral Jitter" value={result.details.spectralJitter} isHigh={result.details.spectralJitter > 60} />
-              <MetricRow label="Harmonic Artifacts" value={result.details.harmonicArtifacts} isHigh={result.details.harmonicArtifacts > 60} />
-              <MetricRow label="Phoneme Consistency" value={result.details.phonemeConsistency} isHigh={result.details.phonemeConsistency < 40} />
-              <MetricRow label="Neural Synthesis Markers" value={result.details.neuralSynthesisMarkers} isHigh={result.details.neuralSynthesisMarkers > 50} />
+              <MetricRow label="Spectral Jitter" value={displayResult.details.spectralJitter} isHigh={displayResult.details.spectralJitter > 60} />
+              <MetricRow label="Harmonic Artifacts" value={displayResult.details.harmonicArtifacts} isHigh={displayResult.details.harmonicArtifacts > 60} />
+              <MetricRow label="Phoneme Consistency" value={displayResult.details.phonemeConsistency} isHigh={displayResult.details.phonemeConsistency < 40} />
+              <MetricRow label="Neural Synthesis Markers" value={displayResult.details.neuralSynthesisMarkers} isHigh={displayResult.details.neuralSynthesisMarkers > 50} />
             </motion.div>
           ) : (
             <div className="h-full flex items-center justify-center text-slate-500">
@@ -150,12 +153,12 @@ export function LiveDetector() {
           </div>
           
           <RiskGauge 
-            score={result?.score || 0} 
-            verdict={result?.verdict || (isAnalyzingFile ? "IDLE" : "IDLE")} 
+            score={displayResult?.score || 0} 
+            verdict={displayResult?.verdict || (isAnalyzingFile ? "IDLE" : "IDLE")} 
           />
 
           <AnimatePresence>
-            {result && result.score > 70 && (
+            {displayResult && displayResult.score > 70 && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

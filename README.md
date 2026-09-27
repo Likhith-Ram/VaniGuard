@@ -158,8 +158,19 @@ python src/test_script.py --verbose
 
 ## ⚠️ Known Limitations
 
-> **Single-user local tool only.**
-> Concurrent writes to `history.csv` from multiple processes are **not safe** — there is no file locking. If you deploy with multiple simultaneous users, replace the CSV backend with a proper database (SQLite, PostgreSQL, etc.).
+> **If you deploy with multiple simultaneous users, replace the CSV backend with a proper database (SQLite, PostgreSQL, etc.).**
 
 > **Random fallback mode.**
 > If `models/vaniguard.onnx` is not found, the app falls back to random predictions. A visible warning banner appears on both the sidebar and the Analyze page when this occurs.
+
+---
+
+## 📬 Contact
+
+For questions, security disclosures, or collaboration inquiries:
+
+- **General**: [team@vaniguard.ai](mailto:team@vaniguard.ai)
+- **Privacy**: [privacy@vaniguard.ai](mailto:privacy@vaniguard.ai)
+- **Security**: See [SECURITY.md](SECURITY.md)
+- **GitHub Issues**: [github.com/Likhith-Ram/VaniGuard/issues](https://github.com/Likhith-Ram/VaniGuard/issues)
+

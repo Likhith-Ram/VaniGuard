@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import useDocTitle from '../hooks/useDocTitle';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +17,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function LiveMonitor() {
+  useDocTitle('Live Monitor');
   const [file, setFile] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [history, setHistory] = useState([]); // For chart

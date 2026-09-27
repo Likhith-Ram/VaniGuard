@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import useDocTitle from '../hooks/useDocTitle';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function History() {
+  useDocTitle('Detection History');
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -1,23 +1,26 @@
 """
 api/main.py - FastAPI entry point for VaniGuard
 """
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import asyncio
+from typing import Optional
+from uuid import UUID
 import numpy as np
 
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.pipeline import (
-    _decode_audio_bytes,
     preprocess_audio,
     load_model,
     run_inference,
     classify,
-    load_history,
-    save_to_history,
     StreamPipeline
 )
 from src.risk_engine import RiskEngine
+from api.core.database import get_db
+from api.repositories.scan_repository import ScanRepository
+from api.models.models import Verdict
+from api.routes import users
 
 app = FastAPI(title="VaniGuard API")
 
@@ -32,13 +35,7 @@ app.add_middleware(
 # Load model globally on startup (or lazy load)
 session, _ = load_model()
 
-from typing import Optional
-from uuid import UUID
-from fastapi import Depends
-from api.core.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from api.repositories.scan_repository import ScanRepository
-from api.models.models import Verdict
+app.include_router(users.router)
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
@@ -67,7 +64,7 @@ async def analyze(file: UploadFile = File(...), db: AsyncSession = Depends(get_d
     await repo.create_scan(
         impersonation_risk_score=float(prob_ai * 100),
         verdict=db_verdict,
-        language="English", # Default for now
+        language="English",  # Default for now
         spectral_features={"confidence": float(confidence), "duration": float(duration_s)}
     )
     
