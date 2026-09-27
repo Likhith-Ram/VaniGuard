@@ -1,4 +1,4 @@
-"""
+﻿"""
 src/test_metrics.py — Unit tests for EER evaluation and calibration.
 """
 
@@ -92,7 +92,7 @@ class TestMetrics(unittest.TestCase):
         y_true = np.array([0, 0, 1, 1])
         y_scores = np.array([0.1, 0.3, 0.7, 0.9])
         calibrated = calibrate_thresholds(y_true, y_scores)
-        
+
         self.assertTrue(0.0 <= calibrated.high <= 1.0)
         self.assertTrue(0.0 <= calibrated.suspicious <= 1.0)
         self.assertTrue(0.0 <= calibrated.uncertain <= 1.0)

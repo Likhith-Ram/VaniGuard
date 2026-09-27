@@ -447,10 +447,10 @@ def render_live_monitor() -> None:
         st.session_state.live_history = []
         st.session_state.live_table = []
         st.session_state.live_is_running = True
-        
+
     st.markdown("### Risk Status")
     badge_placeholder = st.empty()
-    
+
     st.markdown("### Window Analysis")
     chart_placeholder = st.empty()
     table_placeholder = st.empty()
@@ -479,34 +479,34 @@ def render_live_monitor() -> None:
             st.error(f"Error decoding audio: {exc}")
             st.session_state.live_is_running = False
             return
-            
+
         sp = StreamPipeline(session=session)
         engine = RiskEngine(amber_threshold=amber_thresh, red_threshold=red_thresh)
         engine.reset()
-        
+
         # 1-second chunks (since hop size is 1 second, this produces exactly 1 result per chunk smoothly)
-        chunk_size = int(SAMPLE_RATE * 1.0) 
-        
+        chunk_size = int(SAMPLE_RATE * 1.0)
+
         for i in range(0, len(pcm), chunk_size):
             # If user clicked stop, Streamlit raises StopException and aborts the loop,
             # but we also check our own flag just in case.
             if not st.session_state.live_is_running:
                 break
-                
+
             chunk = pcm[i:i+chunk_size]
             results = sp.write(chunk)
             if i + chunk_size >= len(pcm):
                 results.extend(sp.flush())
-                
+
             for r in results:
                 state = engine.ingest(r.prob_ai)
-                
+
                 st.session_state.live_history.append(r.prob_ai)
                 if len(st.session_state.live_history) > 5:
                     st.session_state.live_history.pop(0)
-                
+
                 win_time = f"{r.window_index}s - {r.window_index + 4}s"
-                
+
                 st.session_state.live_table.append({
                     "Time": win_time,
                     "P(AI)": round(r.prob_ai, 3),
@@ -514,7 +514,7 @@ def render_live_monitor() -> None:
                     "Level": state.level.name,
                     "Confidence": state.confidence * 100
                 })
-                    
+
                 # Update UI elements
                 lvl = state.level.name
                 msg = f"**Status:** {lvl} &nbsp;&nbsp;|&nbsp;&nbsp; **Confidence:** {state.confidence*100:.1f}%"
@@ -525,19 +525,20 @@ def render_live_monitor() -> None:
                         st.warning(msg)
                     else:
                         st.error(msg)
-                
+
                 chart_placeholder.line_chart(st.session_state.live_history, y_label="P(AI)", height=300)
-                
+
                 df_table = pd.DataFrame(st.session_state.live_table)
-                table_placeholder.dataframe(df_table.iloc[::-1], use_container_width=True) # Show newest first
-                
-                time.sleep(0.8) # 0.8s sleep to simulate 1s hop speed while allowing UI overhead
-                
+                table_placeholder.dataframe(df_table.iloc[::-1], use_container_width=True)  # Show newest first
+
+                time.sleep(0.8)  # 0.8s sleep to simulate 1s hop speed while allowing UI overhead
+
         st.session_state.live_is_running = False
         st.info("Live monitor playback complete.")
-        
+
         # We trigger a rerun so the state stabilizes and buttons reset
         st.rerun()
+
 
 # ──────────────────────────────────────────────
 # PAGE — HISTORY
