@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   },
   // Compress gzip for all JS/CSS/HTML outputs
   compress: true,
+  turbopack: { root: __dirname }
+
 };
 
 export default nextConfig;
+

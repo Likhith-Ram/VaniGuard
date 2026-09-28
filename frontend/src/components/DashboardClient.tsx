@@ -1,4 +1,4 @@
-"use client";
+"ause client";
 
 import { useState } from "react";
 import { LiveDetector } from "@/components/LiveDetector";
@@ -29,9 +29,8 @@ export default function DashboardClient() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  isActive ? "text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-                }`}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors relative whitespace-nowrap ${isActive ? "text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}

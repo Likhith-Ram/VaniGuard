@@ -1,5 +1,7 @@
 // API service pointing to local backend, with fallback mock data
 
+const API_BASE = 'http://localhost:8000';
+
 export type DetectionResult = {
   score: number;
   verdict: 'AUTHENTIC' | 'SUSPICIOUS' | 'CLONED';
@@ -47,7 +49,7 @@ export async function analyzeAudio(audioFile: File | Blob, language: string): Pr
   formData.append('file', audioFile);
 
   try {
-    const response = await fetch('http://localhost:8000/analyze', {
+    const response = await fetch(`${API_BASE}/analyze`, {
       method: 'POST',
       body: formData,
     });
@@ -58,11 +60,12 @@ export async function analyzeAudio(audioFile: File | Blob, language: string): Pr
     
     const data = await response.json();
     
-    // Map FastAPI backend response to our DetectionResult type
+    // Map /analyze response → DetectionResult
+    // Response fields: verdict, risk_band, prob_ai, confidence, duration_s, is_ai, model_loaded
     let mappedVerdict: 'AUTHENTIC' | 'SUSPICIOUS' | 'CLONED' = 'AUTHENTIC';
-    if (data.verdict.includes("AI-Generated") || data.verdict === "SYNTHETIC CLONE DETECTED") {
+    if (data.is_ai === true || data.verdict?.includes("AI-Generated")) {
       mappedVerdict = 'CLONED';
-    } else if (data.verdict.includes("UNCERTAIN") || data.risk_band === "ELEVATED") {
+    } else if (data.verdict === "UNCERTAIN") {
       mappedVerdict = 'SUSPICIOUS';
     }
 
@@ -70,10 +73,10 @@ export async function analyzeAudio(audioFile: File | Blob, language: string): Pr
       score: data.prob_ai * 100,
       verdict: mappedVerdict,
       details: {
-        spectralJitter: data.confidence * 100, // mapped to UI stats for visual representation
-        harmonicArtifacts: data.prob_ai * 80, 
+        spectralJitter: data.confidence * 100,
+        harmonicArtifacts: data.prob_ai * 80,
         phonemeConsistency: 100 - (data.prob_ai * 60),
-        neuralSynthesisMarkers: data.prob_ai * 100, 
+        neuralSynthesisMarkers: data.prob_ai * 100,
       },
       duration: data.duration_s || 0,
       language: language,
@@ -82,4 +85,39 @@ export async function analyzeAudio(audioFile: File | Blob, language: string): Pr
     console.error("Failed to call backend, please ensure FastAPI is running on port 8000", error);
     throw error;
   }
+}
+
+// ── Telemetry types ────────────────────────────────────────────────────────
+
+export type HistoryEntry = {
+  id: number;
+  timestamp: string;
+  filename: string;
+  verdict: string;
+  confidence_pct: number;
+  risk_band: string;
+  probability: number;
+};
+
+export type HistoryStats = {
+  total: number;
+  ai_detected: number;
+  human_detected: number;
+  uncertain: number;
+  ai_detection_rate: number;
+  avg_confidence: number;
+};
+
+export async function fetchStats(): Promise<HistoryStats> {
+  const response = await fetch(`${API_BASE}/api/stats`);
+  if (!response.ok) throw new Error(`Stats API error: ${response.status}`);
+  const data = await response.json();
+  return data.stats as HistoryStats;
+}
+
+export async function fetchHistory(limit = 100): Promise<HistoryEntry[]> {
+  const response = await fetch(`${API_BASE}/api/history?limit=${limit}`);
+  if (!response.ok) throw new Error(`History API error: ${response.status}`);
+  const data = await response.json();
+  return data.entries as HistoryEntry[];
 }

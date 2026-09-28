@@ -118,13 +118,47 @@ export async function detectAudio(
     type: mimeType,
   } as any);
 
-  const response = await fetch(`${API_BASE_URL}/api/detect`, {
+  // Main endpoint: POST /analyze
+  const response = await fetch(`${API_BASE_URL}/analyze`, {
     method: 'POST',
     body: formData,
     // Don't set Content-Type — fetch will add multipart boundary automatically
   });
 
-  return handleResponse<DetectionResult>(response);
+  // /analyze returns: verdict, risk_band, prob_ai, confidence, confidence_pct,
+  //                   duration_s, is_ai, model_loaded
+  // We normalise this into the DetectionResult shape expected by screens.
+  const raw = await handleResponse<{
+    verdict: string;
+    risk_band: string;
+    risk_css: string;
+    prob_ai: number;
+    confidence: number;
+    confidence_pct: number;
+    duration_s: number;
+    is_ai: boolean;
+    model_loaded: boolean;
+  }>(response);
+
+  // Map verdict string to the shape DetectionResult screens expect
+  const riskLevelMap: Record<string, DetectionResult['risk_level']> = {
+    'HIGH RISK — very likely AI-generated': 'high',
+    'SUSPICIOUS — likely AI-generated': 'suspicious',
+    'UNCERTAIN — borderline': 'uncertain',
+    'LOW RISK — likely human': 'low',
+  };
+
+  return {
+    filename,
+    verdict: raw.verdict,
+    probability: raw.prob_ai,
+    confidence_pct: raw.confidence_pct,
+    risk_band: raw.risk_band,
+    risk_level: riskLevelMap[raw.risk_band] ?? (raw.is_ai ? 'high' : 'low'),
+    duration_s: raw.duration_s,
+    is_ai: raw.is_ai,
+    model_loaded: raw.model_loaded,
+  };
 }
 
 /**
