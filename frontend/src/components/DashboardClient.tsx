@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LiveDetector } from "@/components/LiveDetector";
 import { CallSimulator } from "@/components/CallSimulator";
 import { AuditLogs } from "@/components/AuditLogs";
+import { ModelTelemetry } from "@/components/ModelTelemetry";
 import { Activity, Radio, Phone, History, Cpu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -62,12 +63,7 @@ export default function DashboardClient() {
             {activeTab === "live" && <LiveDetector />}
             {activeTab === "telephony" && <CallSimulator />}
             {activeTab === "audit" && <AuditLogs />}
-            {activeTab === "telemetry" && (
-              <div className="flex h-full items-center justify-center p-6 text-slate-500 flex-col gap-4">
-                <Activity className="w-16 h-16 opacity-20" />
-                <p>Model Telemetry visualization module under construction...</p>
-              </div>
-            )}
+            {activeTab === "telemetry" && <ModelTelemetry />}
           </motion.div>
         </AnimatePresence>
       </div>

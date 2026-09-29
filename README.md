@@ -56,16 +56,13 @@ VaniGuard/
 ├── api/                 ← FastAPI backend server
 ├── frontend/            ← Next.js web application
 ├── mobile/              ← React Native (Expo) mobile application
-├── web/                 ← React + Vite + Capacitor legacy/alternative web app
 ├── src/                 ← Core AI & Audio Processing module
 │   ├── config.py        ← Constants & thresholds
 │   ├── audio_io.py      ← Audio decoding
 │   ├── features.py      ← Log-Mel Spectrogram preprocessing
 │   ├── model.py         ← ONNX inference
 │   ├── classify.py      ← Thresholds and logic
-│   ├── history.py       ← History I/O
 │   └── pipeline.py      ← Public re-export façade
-├── ui/                  ← Legacy Streamlit Dashboard
 ├── models/              ← Fine-tuned MobileNetV2 weights (vaniguard.onnx)
 ├── data/                ← Detection history
 └── .github/workflows/   ← CI pipeline configuration
@@ -147,15 +144,6 @@ npx expo start
 ```
 *Use the Expo Go app on your phone to scan the QR code.*
 
----
-
-### Legacy Streamlit Dashboard
-If you prefer the old Streamlit UI, you can still run it:
-```bash
-streamlit run ui/app.py
-# Or on Windows: run.bat
-```
-
 ### Run Tests
 
 ```bash
@@ -166,7 +154,7 @@ pip install -r requirements-dev.txt
 pytest src/ -v --cov=src --cov-report=term-missing
 
 # Lint & Type check
-flake8 src/ ui/app.py
+flake8 src/
 mypy src/
 ```
 
