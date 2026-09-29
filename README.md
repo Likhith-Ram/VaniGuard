@@ -3,23 +3,28 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white)
 ![CI](https://github.com/Likhith-Ram/VaniGuard/actions/workflows/test.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Coverage](https://img.shields.io/badge/coverage-75.97%25-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-87.50%25-brightgreen)
 
 > **AI-generated voice detection for Hindi, Tamil, and Telugu.**
-> Built with a fine-tuned MobileNetV2 ONNX model, librosa signal processing, and a Streamlit dashboard.
+> Built with a fine-tuned MobileNetV2 ONNX model, librosa signal processing, and a modern full-stack architecture (FastAPI, Next.js, React Native).
 
 ---
 
 ## 🚀 Live Demo
 
-**[Try VaniGuard live →](https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/)**
+**[Try VaniGuard live (Streamlit Demo) →](https://vaniguard-o3g9gcuwexus9ucjquajhc.streamlit.app/)**
 
 ## 🏗️ System Architecture
 
+VaniGuard recently migrated from a monolithic Streamlit app to a modular full-stack architecture.
+
 ### Data Pipeline (fully in-memory — no temp files, no ffmpeg)
 
-```
-Browser upload bytes
+```text
+Client (Next.js / Mobile) -> Uploads audio bytes
+     │
+     ▼
+api/main.py      FastAPI Endpoint
      │
      ▼
 src/audio_io.py  _decode_audio_bytes()
@@ -41,36 +46,29 @@ P(AI-generated) ∈ [0, 1]
 src/classify.py  classify(prob_ai)
      │   threshold mapping → verdict + risk band
      ▼
-ui/app.py  Streamlit dashboard (verdict banner, metrics, spectrogram)
+Client (Next.js / Mobile) receives JSON result & updates UI
 ```
 
 ### Module Map
 
-```
+```text
 VaniGuard/
-├── src/
-│   ├── config.py        ← All constants & thresholds (single source of truth)
-│   ├── audio_io.py      ← Stage 1: decode bytes → float32 PCM
-│   ├── features.py      ← Stages 2–6: full preprocessing pipeline
-│   ├── model.py         ← ONNX session loading + inference
-│   ├── classify.py      ← P(AI) → verdict / risk band / CSS class
-│   ├── history.py       ← CSV-based detection history I/O
-│   ├── pipeline.py      ← Public re-export façade
-│   ├── test_pipeline.py ← Unit tests (pytest)
-│   ├── test_librosa.py  ← Librosa feature extraction tests (pytest)
-│   └── test_script.py   ← Manual end-to-end smoke test
-├── ui/
-│   └── app.py           ← Streamlit UI only (~270 lines, zero business logic)
-├── models/
-│   └── vaniguard.onnx   ← Fine-tuned MobileNetV2 weights
-├── data/
-│   └── history.csv      ← Detection history (auto-created)
-├── notebooks/           ← Training notebooks (add here)
-├── requirements.txt
-├── requirements-dev.txt
-├── run.bat              ← Windows one-click launcher
-└── .github/workflows/
-    └── test.yml         ← CI: flake8 + mypy + pytest + coverage
+├── api/                 ← FastAPI backend server
+├── frontend/            ← Next.js web application
+├── mobile/              ← React Native (Expo) mobile application
+├── web/                 ← React + Vite + Capacitor legacy/alternative web app
+├── src/                 ← Core AI & Audio Processing module
+│   ├── config.py        ← Constants & thresholds
+│   ├── audio_io.py      ← Audio decoding
+│   ├── features.py      ← Log-Mel Spectrogram preprocessing
+│   ├── model.py         ← ONNX inference
+│   ├── classify.py      ← Thresholds and logic
+│   ├── history.py       ← History I/O
+│   └── pipeline.py      ← Public re-export façade
+├── ui/                  ← Legacy Streamlit Dashboard
+├── models/              ← Fine-tuned MobileNetV2 weights (vaniguard.onnx)
+├── data/                ← Detection history
+└── .github/workflows/   ← CI pipeline configuration
 ```
 
 ### Classification Thresholds
@@ -94,8 +92,6 @@ VaniGuard/
 | Output | `float` P(AI-generated) ∈ [0, 1] |
 | Training Data | AI4Bharat corpus |
 | Languages | Hindi, Tamil, Telugu |
-| Accuracy | [FILL IN] |
-| F1 Score | [FILL IN] |
 
 ---
 
@@ -103,36 +99,61 @@ VaniGuard/
 
 ### Prerequisites
 - Python **3.10+**
+- Node.js **18+**
 - Git
 
-### Installation
+### 1. Python Environment & Core Setup
 
 ```bash
-# 1. Clone
 git clone https://github.com/Likhith-Ram/VaniGuard.git
 cd VaniGuard
 
-# 2. Create virtual environment
+# Create virtual environment
 python -m venv venv
 
-# 3. Activate
-# Windows:
+# Activate (Windows)
 venv\Scripts\activate
-# macOS/Linux:
+# Activate (macOS/Linux)
 source venv/bin/activate
 
-# 4. Install runtime deps
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### Run the App
+### 2. Running the FastAPI Backend
 
 ```bash
-# Option A: direct
-streamlit run ui/app.py
+uvicorn api.main:app --reload --port 8000
+```
+*API will be available at http://localhost:8000*
 
-# Option B: Windows one-click
-run.bat
+### 3. Running the Next.js Frontend
+
+In a new terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*Web app will be available at http://localhost:3000*
+
+### 4. Running the Mobile App (Expo)
+
+In a new terminal:
+```bash
+cd mobile
+npm install
+npx expo start
+```
+*Use the Expo Go app on your phone to scan the QR code.*
+
+---
+
+### Legacy Streamlit Dashboard
+If you prefer the old Streamlit UI, you can still run it:
+```bash
+streamlit run ui/app.py
+# Or on Windows: run.bat
 ```
 
 ### Run Tests
@@ -142,35 +163,26 @@ run.bat
 pip install -r requirements-dev.txt
 
 # Unit tests + coverage
-pytest src/test_pipeline.py src/test_librosa.py -v --cov=src --cov-report=term-missing
+pytest src/ -v --cov=src --cov-report=term-missing
 
-# Lint
+# Lint & Type check
 flake8 src/ ui/app.py
-
-# Type check
 mypy src/
-
-# Manual smoke test (not pytest)
-python src/test_script.py --verbose
 ```
 
 ---
 
 ## ⚠️ Known Limitations
 
-> **If you deploy with multiple simultaneous users, replace the CSV backend with a proper database (SQLite, PostgreSQL, etc.).**
-
 > **Random fallback mode.**
-> If `models/vaniguard.onnx` is not found, the app falls back to random predictions. A visible warning banner appears on both the sidebar and the Analyze page when this occurs.
+> If `models/vaniguard.onnx` is not found, the app falls back to random predictions. A visible warning banner appears when this occurs.
 
 ---
 
 ## 📬 Contact
 
 For questions, security disclosures, or collaboration inquiries:
-
 - **General**: [team@vaniguard.ai](mailto:team@vaniguard.ai)
 - **Privacy**: [privacy@vaniguard.ai](mailto:privacy@vaniguard.ai)
 - **Security**: See [SECURITY.md](SECURITY.md)
 - **GitHub Issues**: [github.com/Likhith-Ram/VaniGuard/issues](https://github.com/Likhith-Ram/VaniGuard/issues)
-
