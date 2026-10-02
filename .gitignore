@@ -1,6 +1,8 @@
 # Environments
 venv/
 .env
+.env.local
+.env.*.local
 
 # Data
 data/

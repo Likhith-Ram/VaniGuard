@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Mic, Upload, Download, ShieldAlert, Shield,
   PhoneCall, X, CheckCircle, RefreshCw, User,
@@ -10,8 +10,7 @@ import { RiskGauge } from "./RiskGauge";
 import { analyzeAudio, type DetectionResult } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAudioStream } from "@/hooks/useAudioStream";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE, API_KEY } from "@/lib/config";
 
 // ── OTP Modal ────────────────────────────────────────────────────────────────
 function OtpModal({ onClose }: { onClose: () => void }) {
@@ -84,7 +83,7 @@ function OtpModal({ onClose }: { onClose: () => void }) {
             <motion.div key="waiting" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               className="flex flex-col gap-5">
               <p className="text-sm text-slate-400 text-center">
-                Verification code sent to the caller's registered number.<br />
+                Verification code sent to the caller&apos;s registered number.<br />
                 Share this code only with the verified caller:
               </p>
 
@@ -160,12 +159,14 @@ function TrustedCirclePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      // Auth headers required now that all /api/users/* endpoints are protected.
+      const headers: HeadersInit = API_KEY ? { "X-API-Key": API_KEY } : {};
       try {
-        const usersRes = await fetch(`${API_BASE}/api/users/?limit=1`);
+        const usersRes = await fetch(`${API_BASE}/api/users/?limit=1`, { headers });
         if (!usersRes.ok) throw new Error();
         const users = await usersRes.json();
         if (users.length > 0) {
-          const contactsRes = await fetch(`${API_BASE}/api/users/${users[0].id}/contacts`);
+          const contactsRes = await fetch(`${API_BASE}/api/users/${users[0].id}/contacts`, { headers });
           if (!contactsRes.ok) throw new Error();
           const data: Contact[] = await contactsRes.json();
           setContacts(data.length > 0 ? data : DEMO_CONTACTS);
@@ -302,28 +303,35 @@ export function LiveDetector() {
 
   const { isStreaming, latestResult, error, startStream, stopStream } = useAudioStream();
 
-  const streamingResult: DetectionResult | null = latestResult
-    ? (() => {
-        let mappedVerdict: "AUTHENTIC" | "SUSPICIOUS" | "CLONED" = "AUTHENTIC";
-        if (latestResult.verdict.includes("AI-Generated") || latestResult.verdict === "SYNTHETIC CLONE DETECTED") {
-          mappedVerdict = "CLONED";
-        } else if (latestResult.verdict === "UNCERTAIN") {
-          mappedVerdict = "SUSPICIOUS";
-        }
-        return {
-          score: latestResult.prob_ai * 100,
-          verdict: mappedVerdict,
-          details: {
-            spectralJitter: latestResult.status_confidence * 100,
-            harmonicArtifacts: latestResult.prob_ai * 80,
-            phonemeConsistency: 100 - latestResult.prob_ai * 60,
-            neuralSynthesisMarkers: latestResult.prob_ai * 100,
-          },
-          duration: (latestResult.window_index * 4096) / 16000,
-          language,
-        };
-      })()
-    : null;
+  // useMemo: only recompute when latestResult changes, NOT on every render.
+  // Previously this was an IIFE evaluated unconditionally on each render,
+  // causing expensive re-computation on every WebSocket frame.  See CRIT-07.
+  const streamingResult: DetectionResult | null = useMemo(() => {
+    if (!latestResult) return null;
+
+    let mappedVerdict: "AUTHENTIC" | "SUSPICIOUS" | "CLONED" = "AUTHENTIC";
+    if (
+      latestResult.verdict.includes("AI-Generated") ||
+      latestResult.verdict === "SYNTHETIC CLONE DETECTED"
+    ) {
+      mappedVerdict = "CLONED";
+    } else if (latestResult.verdict === "UNCERTAIN") {
+      mappedVerdict = "SUSPICIOUS";
+    }
+
+    return {
+      score: latestResult.prob_ai * 100,
+      verdict: mappedVerdict,
+      details: {
+        spectralJitter: latestResult.status_confidence * 100,
+        harmonicArtifacts: latestResult.prob_ai * 80,
+        phonemeConsistency: 100 - latestResult.prob_ai * 60,
+        neuralSynthesisMarkers: latestResult.prob_ai * 100,
+      },
+      duration: (latestResult.window_index * 4096) / 16000,
+      language,
+    };
+  }, [latestResult, language]);
 
   const displayResult = streamingResult ?? result;
 
@@ -341,9 +349,14 @@ export function LiveDetector() {
       if (isStreaming) stopStream();
       setIsAnalyzingFile(true);
       setResult(null);
-      const res = await analyzeAudio(e.target.files[0], language);
-      setResult(res);
-      setIsAnalyzingFile(false);
+      try {
+        const res = await analyzeAudio(e.target.files[0], language);
+        setResult(res);
+      } catch (err) {
+        console.error("Audio analysis failed:", err);
+      } finally {
+        setIsAnalyzingFile(false);
+      }
     }
   };
 

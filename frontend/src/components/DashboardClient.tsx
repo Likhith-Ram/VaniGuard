@@ -1,11 +1,11 @@
-"ause client";
+"use client";
 
 import { useState } from "react";
 import { LiveDetector } from "@/components/LiveDetector";
 import { CallSimulator } from "@/components/CallSimulator";
 import { AuditLogs } from "@/components/AuditLogs";
 import { ModelTelemetry } from "@/components/ModelTelemetry";
-import { Activity, Radio, Phone, History, Cpu } from "lucide-react";
+import { Radio, Phone, History, Cpu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardClient() {

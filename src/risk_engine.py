@@ -21,10 +21,19 @@ Usage::
         engine.ingest(result.prob_ai)
     state = engine.get_state()
     print(state.level, state.confidence)
+
+History buffer design
+---------------------
+The rolling history uses :class:`collections.deque` with ``maxlen`` set to
+``history_size``.  This replaces the previous ``list[-N:]`` slice pattern
+which created a new list object every time the history overflowed (every 5
+windows by default).  ``deque.append`` is O(1) and auto-evicts the oldest
+element when full — no slice allocation needed.
 """
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
@@ -101,10 +110,16 @@ class RiskEngine:
     red_sustain: int = _RED_SUSTAIN
 
     # ── internal state ────────────────────────────────────────────────────
-    _history: List[float] = field(default_factory=list, init=False)
+    # deque with maxlen enforces the rolling window in O(1) — no list slice.
+    _history: deque = field(init=False)
     _consecutive_amber: int = field(default=0, init=False)
     _consecutive_red: int = field(default=0, init=False)
     _window_count: int = field(default=0, init=False)
+
+    def __post_init__(self) -> None:
+        # maxlen=history_size means deque auto-evicts the oldest entry when
+        # a new one is appended and the buffer is full.  No manual slicing.
+        self._history = deque(maxlen=self.history_size)
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -124,10 +139,8 @@ class RiskEngine:
         """
         prob_ai = max(0.0, min(1.0, prob_ai))  # defensive clamp
 
-        # Update rolling history (bounded deque-style)
+        # O(1) append — deque auto-evicts the oldest entry when maxlen is hit.
         self._history.append(prob_ai)
-        if len(self._history) > self.history_size:
-            self._history = self._history[-self.history_size:]
 
         self._window_count += 1
 
@@ -153,6 +166,7 @@ class RiskEngine:
         RiskState
         """
         level = self._evaluate_level()
+        # sum() and len() both work on deque in O(N) — acceptable for N ≤ 5.
         confidence = (
             sum(self._history) / len(self._history) if self._history else 0.0
         )

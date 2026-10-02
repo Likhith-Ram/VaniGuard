@@ -25,11 +25,8 @@ import soundfile as sf
 from src.pipeline import (
     _decode_audio_bytes,
     classify,
-    clear_history,
-    load_history,
     preprocess_audio,
     run_inference,
-    save_to_history,
 )
 from src.config import (
     DURATION, HOP_LENGTH, MIN_DURATION, N_MELS, SAMPLE_RATE

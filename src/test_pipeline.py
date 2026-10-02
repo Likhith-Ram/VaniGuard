@@ -26,11 +26,8 @@ import soundfile as sf
 from src.pipeline import (
     _decode_audio_bytes,
     classify,
-    clear_history,
-    load_history,
     preprocess_audio,
     run_inference,
-    save_to_history,
 )
 from src.config import (
     DURATION,
@@ -242,65 +239,6 @@ class TestClassify(unittest.TestCase):
             "AI-Generated", verdict,
             msg="UNCERTAIN verdict falsely matched 'AI-Generated' — breaks dashboard counts"
         )
-
-
-# ── 5. History I/O ─────────────────────────────────────────────────────────
-
-class TestHistoryIO(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self._tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
-        self._tmp.close()
-        open(self._tmp.name, "w").close()  # start blank
-
-    def tearDown(self) -> None:
-        try:
-            os.unlink(self._tmp.name)
-        except FileNotFoundError:
-            pass
-
-    def test_empty_file_returns_correct_columns(self) -> None:
-        os.unlink(self._tmp.name)
-        df = load_history(self._tmp.name)
-        self.assertTrue(df.empty)
-        for col in HISTORY_COLS:
-            self.assertIn(col, df.columns)
-        open(self._tmp.name, "w").close()
-
-    def test_save_load_round_trip(self) -> None:
-        save_to_history("sample.wav", "🤖 AI-Generated", 87.3, "HIGH RISK", 0.923, self._tmp.name)
-        df = load_history(self._tmp.name)
-        self.assertEqual(len(df), 1)
-        r = df.iloc[0]
-        self.assertEqual(r["Filename"], "sample.wav")
-        self.assertAlmostEqual(r["Confidence (%)"], 87.3, places=1)
-        self.assertAlmostEqual(r["AI Prob"], 0.923, places=3)
-
-    def test_multiple_saves_accumulate(self) -> None:
-        for i in range(5):
-            save_to_history(f"c{i}.wav", "Human", 65.0, "LOW RISK", 0.35, self._tmp.name)
-        self.assertEqual(len(load_history(self._tmp.name)), 5)
-
-    def test_clear_history_empties_csv(self) -> None:
-        save_to_history("x.wav", "Human", 65.0, "LOW RISK", 0.35, self._tmp.name)
-        clear_history(self._tmp.name)
-        df = load_history(self._tmp.name)
-        self.assertTrue(df.empty)
-        for col in HISTORY_COLS:
-            self.assertIn(col, df.columns)
-
-    def test_legacy_csv_missing_ai_prob_backfilled(self) -> None:
-        import pandas as pd
-        old = pd.DataFrame([{
-            "Timestamp": "2025-01-01 00:00:00",
-            "Filename": "legacy.wav",
-            "Verdict": "Human",
-            "Confidence (%)": 70.0,
-            "Risk Band": "LOW RISK",
-        }])
-        old.to_csv(self._tmp.name, index=False)
-        df = load_history(self._tmp.name)
-        self.assertIn("AI Prob", df.columns)
 
 
 # ── 6. End-to-end smoke tests ──────────────────────────────────────────────

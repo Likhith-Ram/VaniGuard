@@ -10,8 +10,7 @@ import {
   ChevronDown,
   Filter,
 } from "lucide-react";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE, API_KEY } from "@/lib/config";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type RawScan = {
@@ -68,8 +67,9 @@ function mapScan(raw: RawScan): ScanItem {
 
 function exportCsv(items: ScanItem[]) {
   const header = "ID,Time,Language,Risk %,Verdict,Action";
+  const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = items.map(
-    (i) => `${i.id},${i.time},${i.language},${i.risk},${i.verdict},${i.action}`
+    (i) => [i.id, i.time, i.language, i.risk, i.verdict, i.action].map(escape).join(",")
   );
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -108,8 +108,8 @@ export function AuditLogs() {
   const [langFilter, setLangFilter] = useState<string>("all");
 
   const fetchPage = useCallback(
-    async (cursor?: string, append = false) => {
-      append ? setLoadingMore(true) : setLoading(true);
+    async (cursor?: string, append = false, signal?: AbortSignal) => {
+      if (append) { setLoadingMore(true); } else { setLoading(true); }
       setError(null);
 
       try {
@@ -118,7 +118,8 @@ export function AuditLogs() {
         if (verdictFilter !== "all") params.set("verdict", verdictFilter);
         if (langFilter !== "all") params.set("language", langFilter);
 
-        const res = await fetch(`${API_BASE}/api/scans/history?${params}`);
+        const headers: HeadersInit = API_KEY ? { "X-API-Key": API_KEY } : {};
+        const res = await fetch(`${API_BASE}/api/scans/history?${params}`, { headers, signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -126,7 +127,9 @@ export function AuditLogs() {
         setItems((prev) => (append ? [...prev, ...mapped] : mapped));
         setNextCursor(data.next_cursor ?? null);
         setUsingMock(false);
-      } catch {
+      } catch (err: unknown) {
+        const e = err as Error;
+        if (e.name === 'AbortError') return;
         if (!append) {
           // Only fall back on the initial load
           setItems(MOCK_SCANS);
@@ -136,15 +139,25 @@ export function AuditLogs() {
           );
         }
       } finally {
-        append ? setLoadingMore(false) : setLoading(false);
+        // Double check if aborted, though the abort throws before setting state usually.
+        // It's safe to turn off loading state regardless.
+        if (append) { setLoadingMore(false); } else { setLoading(false); }
       }
     },
     [verdictFilter, langFilter]
   );
 
-  // Re-fetch whenever filters change
+  // Re-fetch whenever filters change.
   useEffect(() => {
-    fetchPage();
+    const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPage(undefined, false, controller.signal).catch(e => {
+       if (e.name !== 'AbortError') console.error(e);
+    }); 
+    
+    return () => {
+      controller.abort();
+    };
   }, [fetchPage]);
 
   const handleLoadMore = () => {

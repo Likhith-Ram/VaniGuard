@@ -182,7 +182,7 @@ export function ModelTelemetry() {
   }, []);
 
   useEffect(() => {
-    load();
+    load(); // eslint-disable-line react-hooks/set-state-in-effect
   }, [load]);
 
   const verdictData = stats

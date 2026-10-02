@@ -1,10 +1,35 @@
-// API service pointing to local backend, with fallback mock data
+/**
+ * lib/api.ts — VaniGuard API client (frontend).
+ *
+ * All HTTP requests go through this module. No component should call
+ * fetch() directly or reference API_BASE / API_KEY themselves.
+ *
+ * Authentication: every request carries the X-API-Key header whose value
+ * comes from the NEXT_PUBLIC_API_KEY environment variable (see lib/config.ts).
+ */
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE, API_KEY } from "@/lib/config";
+
+// ── Shared request helper ──────────────────────────────────────────────────
+
+/**
+ * Build the standard headers for every authenticated request.
+ * Returns a plain HeadersInit object — does NOT include Content-Type so
+ * fetch can set it automatically (important for FormData uploads).
+ */
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+  return headers;
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────
 
 export type DetectionResult = {
   score: number;
-  verdict: 'AUTHENTIC' | 'SUSPICIOUS' | 'CLONED';
+  verdict: "AUTHENTIC" | "SUSPICIOUS" | "CLONED";
   details: {
     spectralJitter: number;
     harmonicArtifacts: number;
@@ -14,80 +39,6 @@ export type DetectionResult = {
   duration: number;
   language: string;
 };
-
-const MOCK_DELAY = 1500;
-
-const USE_MOCK = false; // Turned off to use real backend
-
-export async function analyzeAudio(audioFile: File | Blob, language: string): Promise<DetectionResult> {
-  if (USE_MOCK) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Randomize score for realism
-        const isSuspicious = Math.random() > 0.5;
-        const score = isSuspicious ? 75 + Math.random() * 20 : 5 + Math.random() * 15;
-        
-        resolve({
-          score,
-          verdict: score > 70 ? 'CLONED' : score > 40 ? 'SUSPICIOUS' : 'AUTHENTIC',
-          details: {
-            spectralJitter: Math.random() * 100,
-            harmonicArtifacts: Math.random() * 100,
-            phonemeConsistency: 100 - Math.random() * 40,
-            neuralSynthesisMarkers: score, // Highly correlated with final score
-          },
-          duration: 3.2,
-          language: language,
-        });
-      }, MOCK_DELAY);
-    });
-  }
-
-  // Real backend implementation
-  const formData = new FormData();
-  // FastAPI expects 'file' parameter
-  formData.append('file', audioFile);
-
-  try {
-    const response = await fetch(`${API_BASE}/analyze`, {
-      method: 'POST',
-      body: formData,
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Map /analyze response → DetectionResult
-    // Response fields: verdict, risk_band, prob_ai, confidence, duration_s, is_ai, model_loaded
-    let mappedVerdict: 'AUTHENTIC' | 'SUSPICIOUS' | 'CLONED' = 'AUTHENTIC';
-    if (data.is_ai === true || data.verdict?.includes("AI-Generated")) {
-      mappedVerdict = 'CLONED';
-    } else if (data.verdict === "UNCERTAIN") {
-      mappedVerdict = 'SUSPICIOUS';
-    }
-
-    return {
-      score: data.prob_ai * 100,
-      verdict: mappedVerdict,
-      details: {
-        spectralJitter: data.confidence * 100,
-        harmonicArtifacts: data.prob_ai * 80,
-        phonemeConsistency: 100 - (data.prob_ai * 60),
-        neuralSynthesisMarkers: data.prob_ai * 100,
-      },
-      duration: data.duration_s || 0,
-      language: language,
-    };
-  } catch (error) {
-    console.error("Failed to call backend, please ensure FastAPI is running on port 8000", error);
-    throw error;
-  }
-}
-
-// ── Telemetry types ────────────────────────────────────────────────────────
 
 export type HistoryEntry = {
   id: number;
@@ -108,15 +59,66 @@ export type HistoryStats = {
   avg_confidence: number;
 };
 
+// ── Audio analysis ─────────────────────────────────────────────────────────
+
+export async function analyzeAudio(
+  audioFile: File | Blob,
+  language: string
+): Promise<DetectionResult> {
+  const formData = new FormData();
+  formData.append("file", audioFile);
+
+  const response = await fetch(`${API_BASE}/analyze`, {
+    method: "POST",
+    headers: authHeaders(), // X-API-Key; Content-Type is set by fetch for FormData
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail ?? `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Map /analyze response → DetectionResult
+  // Response fields: verdict, risk_band, prob_ai, confidence, duration_s, is_ai, model_loaded
+  let mappedVerdict: "AUTHENTIC" | "SUSPICIOUS" | "CLONED" = "AUTHENTIC";
+  if (data.is_ai === true || data.verdict?.includes("AI-Generated")) {
+    mappedVerdict = "CLONED";
+  } else if (data.verdict === "UNCERTAIN") {
+    mappedVerdict = "SUSPICIOUS";
+  }
+
+  return {
+    score: data.prob_ai * 100,
+    verdict: mappedVerdict,
+    details: {
+      spectralJitter: data.confidence * 100,
+      harmonicArtifacts: data.prob_ai * 80,
+      phonemeConsistency: 100 - data.prob_ai * 60,
+      neuralSynthesisMarkers: data.prob_ai * 100,
+    },
+    duration: data.duration_s || 0,
+    language,
+  };
+}
+
+// ── Telemetry ──────────────────────────────────────────────────────────────
+
 export async function fetchStats(): Promise<HistoryStats> {
-  const response = await fetch(`${API_BASE}/api/stats`);
+  const response = await fetch(`${API_BASE}/api/stats`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(`Stats API error: ${response.status}`);
   const data = await response.json();
   return data.stats as HistoryStats;
 }
 
 export async function fetchHistory(limit = 100): Promise<HistoryEntry[]> {
-  const response = await fetch(`${API_BASE}/api/history?limit=${limit}`);
+  const response = await fetch(`${API_BASE}/api/history?limit=${limit}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(`History API error: ${response.status}`);
   const data = await response.json();
   return data.entries as HistoryEntry[];

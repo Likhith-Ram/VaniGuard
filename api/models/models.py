@@ -67,12 +67,12 @@ class AudioScan(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("telephony_sessions.id"), nullable=True)
-    language = Column(String(20), nullable=True)
+    language = Column(String(20), nullable=True, index=True)
     impersonation_risk_score = Column(Float, nullable=False)
-    verdict = Column(Enum(Verdict), nullable=False)
+    verdict = Column(Enum(Verdict), nullable=False, index=True)
     audio_sha256 = Column(String(64), index=True)
     spectral_features = Column(JSONB, nullable=True)
-    scanned_at = Column(DateTime(timezone=True), server_default=func.now())
+    scanned_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     session = relationship("TelephonySession", back_populates="scans")
     audit_events = relationship("AuditEvent", back_populates="scan", cascade="all, delete-orphan")

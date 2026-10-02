@@ -23,10 +23,21 @@ The :class:`StreamPipeline` class enables real-time, chunk-based inference.
 Feed it arbitrary-length PCM chunks via :meth:`write`; it maintains an
 internal ring buffer and slides a 4-second window with a 1-second hop,
 yielding one prediction per hop.
+
+Buffer implementation note
+--------------------------
+The internal buffer uses :class:`collections.deque` instead of a growing
+numpy array.  ``np.concatenate`` allocates a brand-new array on every
+``write()`` call, producing O(total_samples) garbage-collection pressure
+over a long stream.  ``deque.extend`` is O(chunk_size) with no
+reallocation, and ``popleft`` is O(1).  Window extraction creates a single
+numpy array only when a full window is ready for inference.
 """
 
 from __future__ import annotations
 
+import itertools
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
@@ -53,11 +64,6 @@ from src.config import (                      # noqa: F401
     THRESH_UNCERTAIN,
 )
 from src.features import preprocess_audio, preprocess_audio_array  # noqa: F401
-from src.history import (                      # noqa: F401
-    clear_history,
-    load_history,
-    save_to_history,
-)
 from src.model import (                        # noqa: F401
     get_cached_session,
     load_model,
@@ -97,6 +103,13 @@ class StreamPipeline:
     stored as float32) and slides a **4-second window** with a **1-second
     hop** over incoming data.
 
+    Buffer design
+    -------------
+    The buffer is a :class:`collections.deque` of float32 scalars rather
+    than a growing numpy array.  This eliminates the O(N) allocation cost
+    of ``np.concatenate`` that would otherwise fire on every ``write()``
+    call (potentially hundreds of times per minute during a live stream).
+
     Usage::
 
         sp = StreamPipeline()
@@ -127,14 +140,12 @@ class StreamPipeline:
     hop_samples: int = STREAM_HOP_SAMPLES
 
     # ── internal state (not constructor args) ─────────────────────────────
-    _buffer: np.ndarray = field(init=False)
-    _write_pos: int = field(default=0, init=False)
+    # deque of float32 scalars — O(1) extend/popleft, no reallocation.
+    _buffer: deque = field(init=False)
     _window_count: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
-        # Pre-allocate a ring buffer large enough for one full window.
-        # We grow it dynamically when more data arrives than fits.
-        self._buffer = np.empty(0, dtype=np.float32)
+        self._buffer = deque()
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -153,15 +164,27 @@ class StreamPipeline:
             Zero or more results, one per window that became available.
         """
         chunk = np.asarray(chunk, dtype=np.float32).ravel()
-        self._buffer = np.concatenate([self._buffer, chunk])
+
+        # O(len(chunk)) extend — no new array is allocated for the buffer.
+        self._buffer.extend(chunk)
 
         results: List[WindowResult] = []
         while len(self._buffer) >= self.window_samples:
-            window = self._buffer[: self.window_samples]
+            # Extract a contiguous window as a fresh numpy array for inference.
+            # islice is O(window_samples) but only fires once per hop (≈ 1 s).
+            window = np.fromiter(
+                itertools.islice(self._buffer, self.window_samples),
+                dtype=np.float32,
+                count=self.window_samples,
+            )
             result = self._process_window(window)
             results.append(result)
-            # Slide forward by hop_samples
-            self._buffer = self._buffer[self.hop_samples:]
+
+            # Slide the buffer forward by hop_samples.
+            # deque.popleft() is O(1); total cost is O(hop_samples) per window.
+            for _ in range(self.hop_samples):
+                self._buffer.popleft()
+
         return results
 
     def flush(self) -> List[WindowResult]:
@@ -179,15 +202,20 @@ class StreamPipeline:
         """
         results: List[WindowResult] = []
         if len(self._buffer) >= self.window_samples:
-            window = self._buffer[: self.window_samples]
+            window = np.fromiter(
+                itertools.islice(self._buffer, self.window_samples),
+                dtype=np.float32,
+                count=self.window_samples,
+            )
             results.append(self._process_window(window))
-            self._buffer = self._buffer[self.hop_samples:]
+            for _ in range(self.hop_samples):
+                if self._buffer:
+                    self._buffer.popleft()
         return results
 
     def reset(self) -> None:
         """Clear the internal buffer and reset window counter."""
-        self._buffer = np.empty(0, dtype=np.float32)
-        self._write_pos = 0
+        self._buffer = deque()
         self._window_count = 0
 
     @property
