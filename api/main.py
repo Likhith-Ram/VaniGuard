@@ -343,16 +343,16 @@ async def get_history_compat(
 ):
     """Offset-paginated history — backward-compat alias for mobile. Requires X-API-Key header."""
     query = (
-        select(AudioScan)
+        select(AudioScan, func.count().over().label("total_count"))
         .order_by(AudioScan.scanned_at.desc())
         .limit(limit)
         .offset(offset)
     )
     result = await db.execute(query)
-    scans = result.scalars().all()
-
-    count_result = await db.execute(select(func.count()).select_from(AudioScan))
-    total = count_result.scalar() or 0
+    rows = result.all()
+    
+    total = rows[0].total_count if rows else 0
+    scans = [row.AudioScan for row in rows]
 
     return {
         "total": total,
@@ -377,12 +377,19 @@ async def get_history_compat(
 
 
 # ── /api/stats — aggregate statistics ────────────────────────────────────────
+import time
+_stats_cache = {"data": None, "time": 0.0}
+
 @app.get("/api/stats", tags=["history"])
 async def get_stats(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_api_key),
 ):
     """Aggregate statistics across all scans. Requires X-API-Key header."""
+    now = time.time()
+    if _stats_cache["data"] and (now - _stats_cache["time"] < 60.0):
+        return _stats_cache["data"]
+
     result = await db.execute(
         select(
             func.count().label("total"),
@@ -401,7 +408,7 @@ async def get_stats(
     row = result.one()
     total = row.total or 0
     ai_detected = row.ai_detected or 0
-    return {
+    _stats_cache["data"] = {
         "stats": {
             "total": total,
             "ai_detected": ai_detected,
@@ -411,6 +418,8 @@ async def get_stats(
             "avg_confidence": round(float(row.avg_confidence or 0), 1),
         }
     }
+    _stats_cache["time"] = now
+    return _stats_cache["data"]
 
 
 # ── /api/health — health check (PUBLIC — no auth required) ───────────────────

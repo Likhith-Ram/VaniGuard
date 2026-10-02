@@ -152,13 +152,16 @@ const DEMO_CONTACTS: Contact[] = [
   { id: "demo-3", contact_name: "Dr. Meera", contact_phone: "+91 76543 21098", relationship_type: "doctor" },
 ];
 
+let cachedContacts: Contact[] | null = null;
+
 function TrustedCirclePanel({ onClose }: { onClose: () => void }) {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [contacts, setContacts] = useState<Contact[]>(cachedContacts || []);
+  const [loading, setLoading] = useState(!cachedContacts);
   const [alerted, setAlerted] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const load = async () => {
+      if (cachedContacts) return;
       // Auth headers required now that all /api/users/* endpoints are protected.
       const headers: HeadersInit = API_KEY ? { "X-API-Key": API_KEY } : {};
       try {
@@ -169,12 +172,15 @@ function TrustedCirclePanel({ onClose }: { onClose: () => void }) {
           const contactsRes = await fetch(`${API_BASE}/api/users/${users[0].id}/contacts`, { headers });
           if (!contactsRes.ok) throw new Error();
           const data: Contact[] = await contactsRes.json();
-          setContacts(data.length > 0 ? data : DEMO_CONTACTS);
+          cachedContacts = data.length > 0 ? data : DEMO_CONTACTS;
+          setContacts(cachedContacts);
         } else {
-          setContacts(DEMO_CONTACTS);
+          cachedContacts = DEMO_CONTACTS;
+          setContacts(cachedContacts);
         }
       } catch {
-        setContacts(DEMO_CONTACTS);
+        cachedContacts = DEMO_CONTACTS;
+        setContacts(cachedContacts);
       } finally {
         setLoading(false);
       }

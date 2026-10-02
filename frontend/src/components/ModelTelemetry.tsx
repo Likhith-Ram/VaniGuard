@@ -165,7 +165,7 @@ export function ModelTelemetry() {
     setLoading(true);
     setError(null);
     try {
-      const [s, h] = await Promise.all([fetchStats(), fetchHistory(100)]);
+      const [s, h] = await Promise.all([fetchStats(), fetchHistory(30)]);
       setStats(s);
       setHistory(h);
       setUsingMock(false);

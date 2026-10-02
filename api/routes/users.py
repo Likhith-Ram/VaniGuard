@@ -77,8 +77,7 @@ async def get_trusted_contacts(user_id: UUID, db: AsyncSession = Depends(get_db)
     user = await repo.get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    contacts = await repo.get_trusted_contacts(user_id)
-    return contacts
+    return user.contacts
 
 
 @router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
